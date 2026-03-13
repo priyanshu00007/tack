@@ -1,0 +1,183 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String   @id @default(cuid())
+  email             String   @unique
+  password          String?
+  firstName         String
+  lastName          String
+  avatar            String?
+  timezone          String   @default("UTC")
+  isActive          Boolean  @default(true)
+  lastLogin         DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // OAuth
+  googleId          String?   @unique
+  oauthProvider     String?   // "google", "github", etc.
+
+  // Preferences
+  preferences       Json     @default({
+    theme: "dark",
+    dailyCapacityMinutes: 480,
+    notifications: {
+      email: true,
+      push: true,
+      taskReminders: true,
+      habitReminders: true
+    }
+  })
+
+  // Subscription
+  subscription       Json     @default({
+    plan: "free",
+    startDate: "2024-01-01T00:00:00.000Z",
+    endDate: null,
+    features: []
+  })
+
+  // Relations
+  tasks              Task[]
+  habits              Habit[]
+  goals               Goal[]
+  sessions            Session[]
+  
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  refreshToken String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Task {
+  id                String    @id @default(cuid())
+  userId            String
+  title             String
+  description       String?
+  date              DateTime
+  estimatedMinutes  Int
+  quadrant          Quadrant
+  status            TaskStatus @default(ACTIVE)
+  priority          Priority  @default(MEDIUM)
+  tags              String[]
+  completedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@index([userId, status])
+  @@index([userId, quadrant])
+  @@index([userId, date, status])
+  @@map("tasks")
+}
+
+model Habit {
+  id             String   @id @default(cuid())
+  userId         String
+  name           String
+  description    String?
+  targetDays     Int      @default(7)
+  completedDates DateTime[]
+  streak         Int      @default(0)
+  bestStreak     Int      @default(0)
+  isActive       Boolean  @default(true)
+  color          String?  @default("#3B82F6")
+  icon           String?  @default("🎯")
+  reminderTime   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+  @@index([userId, completedDates])
+  @@map("habits")
+}
+
+model Goal {
+  id          String     @id @default(cuid())
+  userId      String
+  title       String
+  description String?
+  targetDate  DateTime
+  category    String
+  status      GoalStatus @default(ACTIVE)
+  priority    Priority   @default(MEDIUM)
+  progress    Int        @default(0)
+  tags        String[]
+  completedAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Milestones
+  milestones  Milestone[]
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([userId, targetDate])
+  @@index([userId, category])
+  @@map("goals")
+}
+
+model Milestone {
+  id          String    @id @default(cuid())
+  goalId      String
+  title       String
+  description String?
+  dueDate     DateTime?
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  goal Goal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@map("milestones")
+}
+
+// Enums
+enum Quadrant {
+  IU      // Important & Urgent
+  IBNU    // Important, Not Urgent
+  NIBU    // Not Important, Urgent
+  NINU    // Not Important, Not Urgent
+}
+
+enum TaskStatus {
+  ACTIVE
+  DONE
+  CANCELLED
+}
+
+enum GoalStatus {
+  ACTIVE
+  COMPLETED
+  PAUSED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
